@@ -22,7 +22,7 @@ def get_text_chunks(raw_text):
     # takes a string and returns a list of text chunks
     chunks = CharacterTextSplitter(
         separator="\n",
-        chunk_size=1000,
+        chunk_size=1500,
         chunk_overlap=200,
         length_function=len,
     ).split_text(raw_text)
@@ -30,7 +30,9 @@ def get_text_chunks(raw_text):
 
 def get_vectorstore(text_chunks):
     #embeddings = OpenAIEmbeddings()
-    embeddings = HuggingFaceInstructEmbeddings(model_name="hkunlp/instructor-xl")
+    embeddings = OpenAIEmbeddings(deployment="devx-text-embedding-ada-002-2")
+    #embeddings = HuggingFaceInstructEmbeddings(model_name="hkunlp/instructor-xl")
+    print(embeddings)
     vectorstore = FAISS.from_texts(texts=text_chunks, embedding=embeddings)
     return vectorstore
 
