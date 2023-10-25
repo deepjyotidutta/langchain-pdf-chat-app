@@ -1,13 +1,15 @@
 import streamlit as st
+import os
 from dotenv import load_dotenv
 from PyPDF2 import PdfReader
-from langchain.text_splitter import CharacterTextSplitter
+from langchain.text_splitter import CharacterTextSplitter,RecursiveCharacterTextSplitter
 from langchain.embeddings import OpenAIEmbeddings,HuggingFaceInstructEmbeddings
 from langchain.vectorstores import FAISS
 from langchain.chat_models import AzureChatOpenAI
 from langchain.memory import ConversationBufferMemory
 from langchain.chains import ConversationalRetrievalChain
 from htmlTemplates import bot_template,user_template,css
+from langchain.vectorstores import Milvus
 
 def get_pdf_text(pdfs):
     # takes a pdf file and returns a list of text chunks
@@ -20,20 +22,50 @@ def get_pdf_text(pdfs):
 
 def get_text_chunks(raw_text):
     # takes a string and returns a list of text chunks
+    # chunks = CharacterTextSplitter(
+    #     separator="\n",
+    #     chunk_size=1024,
+    #     chunk_overlap=200,
+    #     length_function=len,
+    # ).split_text(raw_text)
     chunks = CharacterTextSplitter(
         separator="\n",
-        chunk_size=1500,
+        chunk_size=1024,
         chunk_overlap=200,
         length_function=len,
     ).split_text(raw_text)
+    print(chunks)
     return chunks
 
-def get_vectorstore(text_chunks):
+def get_docs(raw_text):
+    chunks = CharacterTextSplitter(
+        chunk_size=1024,
+        chunk_overlap=0
+    ).split_text(raw_text)
+    print(chunks)
+    text_splitter = RecursiveCharacterTextSplitter(chunk_size=1024, chunk_overlap=200)
+    docs = text_splitter.create_documents(chunks)
+    return docs
+
+def get_vectorstore(docs):
     #embeddings = OpenAIEmbeddings()
     embeddings = OpenAIEmbeddings(deployment="devx-text-embedding-ada-002-2")
     #embeddings = HuggingFaceInstructEmbeddings(model_name="hkunlp/instructor-xl")
     print(embeddings)
-    vectorstore = FAISS.from_texts(texts=text_chunks, embedding=embeddings)
+    vectorstore = FAISS.from_documents(docs, embedding=embeddings)
+    return vectorstore
+
+def get_vectorstore_milvus(docs):
+    #embeddings = OpenAIEmbeddings()
+    embeddings = OpenAIEmbeddings(deployment="devx-text-embedding-ada-002-2")
+    #embeddings = HuggingFaceInstructEmbeddings(model_name="hkunlp/instructor-xl")
+    print(embeddings)
+    vectorstore = Milvus.from_documents(
+        docs,
+        embedding=embeddings,
+        collection_name = 'poc_collection_x',
+        connection_args={"host": os.getenv("MILVUS_HOST"), "port": os.getenv("MILVUS_PORT")}
+    )
     return vectorstore
 
 def get_conversation_chain(vectorstore):
@@ -87,12 +119,21 @@ def main():
             with st.spinner("Processing document"):
                 # process the document
                 raw_text = get_pdf_text(pdfs)
-                #st.write(raw_text)
+                st.write(raw_text)
+                st.write("-------------------")
                 # get text chunks
-                text_chunks = get_text_chunks(raw_text)
-                #st.write(text_chunks)
+                # text_chunks = get_text_chunks(raw_text)
+                # st.write(text_chunks)
+
+                docs =  get_docs(raw_text)
+                st.write("-------------------")
+                st.write(docs)
+
                 #  create vector store
-                vectorstore = get_vectorstore(text_chunks)
+                #vectorstore = get_vectorstore(docs)
+                vectorstore = get_vectorstore_milvus(docs)
+                st.write(vectorstore)
+
                 #embeddings = OpenAIEmbeddings(deployment="gpt-4-cbre")
                 #query_result = embeddings.embed_query(text_chunks[0])
                 #st.write(query_result)
